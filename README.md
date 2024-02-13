@@ -20,7 +20,7 @@ We use two open-source multi-modal LLMs, LLaVA and PandaGPT to experiment our at
 
 ### Create conda environment for LLaVA
 
-```
+```shell
 cd llava
 conda create -n llava_injection python=3.10 -y
 conda activate llava_injection
@@ -37,3 +37,10 @@ Please refer to this [link](https://github.com/haotian-liu/LLaVA/tree/main#llava
 We run all of the experiments using [LLaVA](https://github.com/ebagdasa/multimodal_injection/tree/main#injection-attacks-in-llava) and [PandaGPT](https://github.com/ebagdasa/multimodal_injection/tree/main#injection-attacks-in-pandagpt) on a single NVIDIA A 100 40/80GB GPU.
 
 Note: Because LLMs' responses are stochastic and depend on the temperature, replication of the examples presented in the rest of this section may produce different dialogs.
+
+Run the example code by using:
+
+```shell
+python llava_two_llms_new.py
+```
+
