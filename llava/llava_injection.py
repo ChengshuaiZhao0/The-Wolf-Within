@@ -7,7 +7,6 @@ from llava.utils import disable_torch_init
 from transformers import CLIPVisionModel, CLIPImageProcessor, StoppingCriteria
 from llava.model import *
 from llava.model.utils import KeywordsStoppingCriteria
-from trl import AutoModelForCausalLMWithValueHead
 from PIL import Image
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -67,13 +66,6 @@ def load_image(image_file):
     else:
         image = Image.open(image_file).convert("RGB")
     return image
-
-def load_rl_model(MODEL_NAME):
-    disable_torch_init()
-    model_name = os.path.expanduser(MODEL_NAME)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(model_name, low_cpu_mem_usage=True, torch_dtype=torch.float16, use_cache=True)
-    return model, tokenizer
 
 
 def load_model(MODEL_NAME, device='cuda:0'):
@@ -196,353 +188,37 @@ def load_param(MODEL_NAME, model, tokenizer, initial_query, device='cuda:0'):
     )
 
 
-def display_image(image_tensor, unnorm):
-    return display(transform(unnorm(image_tensor.data[0].detach().cpu())))
+def load_prompt(model, tokenizer, init_query):
+    global p_before_embeds, p_after_embeds, bos_embeds
 
-def manually_forward_gpt(input_ids, model, attention_mask = None,
-        past_key_values = None,
-        inputs_embeds = None,
-        use_cache = None,
-        output_attentions = None,
-        output_hidden_states = None,
-        return_dict = None):
-        res = mdoel(
-        input_ids=None, attention_mask=attention_mask, past_key_values=past_key_values,
-        inputs_embeds=inputs_embeds, use_cache=use_cache,
-        output_attentions=output_attentions, output_hidden_states=output_hidden_states,
-        return_dict=return_dict)
-        return res
+    p_before = "### Human: <Img>"
+    text = "</Img> " + init_query + "\n### Assistant: "
 
-def manually_generate_gpt(input_ids, model, prompt, tokenizer):
-    temperature = TEMPERATURE
-    max_new_tokens = MAX_NEW_TOKENS
-    context_len = CONTEXT_LEN
-    max_src_len = context_len - max_new_tokens - 8
+    p_before_tokens = tokenizer(
+        p_before, return_tensors="pt", add_special_tokens=False
+    ).to(model.device)
+    p_before_embeds =  model.model.embed_tokens(
+        p_before_tokens.input_ids
+    ).expand(1, -1, -1)
 
-    input_ids = input_ids[-max_src_len:]
-    stop_idx = 2
+    p_after_tokens = tokenizer(
+        text, add_special_tokens=False, return_tensors="pt"
+    ).to(model.device)
+    p_after_embeds =  model.model.embed_tokens(
+        p_after_tokens.input_ids
+    ).expand(1, -1, -1)
 
-    ori_prompt = prompt
-
-    output_ids = list(input_ids)
-    pred_ids = []
-    logits_list = []
-
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-
-    past_key_values = None
-
-    for i in range(max_new_tokens):
-        if i == 0 and past_key_values is None:
-            out = manually_forward(
-                input_ids=torch.as_tensor([input_ids]).to(device),
-                model=model,
-                use_cache=True,
-                output_hidden_states=True,
-            )
-            logits = out[0]
-            past_key_values = out.past_key_values
-        else:
-            attention_mask = torch.ones(
-                1, past_key_values[0][0].shape[-2] + 1, device=device
-            )
-            out = manually_forward(
-                input_ids=torch.as_tensor([[token]], device=device),
-                model=model,
-                use_cache=True,
-                attention_mask=attention_mask,
-                past_key_values=past_key_values,
-                output_hidden_states=True,
-            )
-            logits = out[0]
-            past_key_values = out.past_key_values
-        # yield out
-
-        last_token_logits = logits[0][-1]
-        if temperature < 1e-4:
-            token = int(torch.argmax(last_token_logits))
-            logits_list.append(last_token_logits)
-        else:
-            probs = torch.softmax(last_token_logits / temperature, dim=-1)
-            token = int(torch.multinomial(probs, num_samples=1))
-            logits_list.append(last_token_logits / temperature)
-        
-        output_ids.append(token)
-        pred_ids.append(token)
-
-        if stop_idx is not None and token == stop_idx:
-            stopped = True
-        elif token == tokenizer.eos_token_id:
-            stopped = True
-        else:
-            stopped = False
-
-        if i != 0 and i % 1024 == 0 or i == max_new_tokens - 1 or stopped:
-            cur_out = tokenizer.decode(pred_ids, skip_special_tokens=True)
-            pos = -1  # cur_out.rfind(stop_str)
-            if pos != -1:
-                cur_out = cur_out[:pos]
-                stopped = True
-            output = ori_prompt + cur_out
-
-            # print('output', output)
-            norm_logits = last_token_logits / temperature
-            ret = {
-                "text": output,
-                "error_code": 0,
-            }
-            yield cur_out, logits_list
-
-        if stopped:
-            break
-
-    if past_key_values is not None:
-        del past_key_values
-
-def manually_forward_for_training(input_ids, model, vision_tower, projector,
-        attention_mask = None,
-        past_key_values = None,
-        inputs_embeds = None,
-        use_cache = None,
-        output_attentions = None,
-        output_hidden_states = None,
-        return_dict = None, images = None, soft_prompt=None, padding=None):
-
-    image_forward_out = vision_tower(images, output_hidden_states=True)
-    select_hidden_state = image_forward_out.hidden_states[-2]
-
-    image_features = select_hidden_state[:, 1:]
-    image_features = projector(image_features)
-    cur_image_features = image_features[0]
-
-    num_patches = cur_image_features.shape[0]
-    cur_image_features = image_features[0]
-
-    
-    # print(soft_prompt.shape, cur_image_features.shape, padding.shape)
-    # exit(0)
-
-    inputs_embeds = torch.cat([soft_prompt.squeeze(0), cur_image_features, padding], dim=0).unsqueeze(0)
-
-    res = super(LlavaLlamaModel, model.model).forward(
-        input_ids=None, attention_mask=attention_mask, past_key_values=past_key_values,
-        inputs_embeds=inputs_embeds, use_cache=use_cache,
-        output_attentions=output_attentions, output_hidden_states=output_hidden_states,
-        return_dict=return_dict
-    )
-    last_hidden_state = res[0]
-    res2 = model.lm_head(last_hidden_state)
-
-    return CausalLMOutputWithPast(
-            logits=res2,
-            past_key_values=res.past_key_values,
-            hidden_states=res.hidden_states,
-            attentions=res.attentions,
+    bos = (
+        torch.ones(
+            [1, 1],
+            dtype=p_before_tokens.input_ids.dtype,
+            device=p_before_tokens.input_ids.device,
         )
-
-
-
-def manually_forward(input_ids, model, vision_tower, projector,
-        attention_mask = None,
-        past_key_values = None,
-        inputs_embeds = None,
-        use_cache = None,
-        output_attentions = None,
-        output_hidden_states = None,
-        return_dict = None, images = None, soft_prompt=None, padding=None, return_padding=False):
-    
-
-    if past_key_values != None:
-        cur_input_ids = input_ids[0]
-        inputs_embeds = model.model.embed_tokens(cur_input_ids.unsqueeze(0))
-        cur_input_embeds = inputs_embeds[0]
-
-
-    elif images != None and past_key_values == None:
-
-        image_forward_out = vision_tower(images, output_hidden_states=True)
-        select_hidden_state = image_forward_out.hidden_states[-2]
-
-        image_features = select_hidden_state[:, 1:]
-        image_features = projector(image_features)
-        cur_image_features = image_features[0]
-
-        num_patches = cur_image_features.shape[0]
-        cur_image_features = image_features[0]
-
-        # new input_ids
-        #zcs: j examples for each image
-        if soft_prompt == None:
-            cur_input_ids = input_ids[0]
-            inputs_embeds = model.model.embed_tokens(cur_input_ids.unsqueeze(0))
-            cur_input_embeds = inputs_embeds[0]
-            
-            # image_start_tokens = torch.where(cur_input_ids == 32001)[0]
-            image_start_tokens = torch.where(cur_input_ids == vision_tower.config.im_patch_token)[0]
-
-            image_start_token_pos = image_start_tokens[0]
-            
-
-            cur_new_input_embeds = torch.cat(
-                (
-                    cur_input_embeds[: image_start_token_pos + 1],
-                    cur_image_features,
-                    cur_input_embeds[image_start_token_pos + num_patches + 1 :],
-                ),
-                dim=0,
-            )
-        else:
-
-            soft_prompt_embed = soft_prompt.matmul(model.model.embed_tokens.weight)
-            cur_new_input_embeds = torch.cat(
-                (
-                    soft_prompt_embed,
-                    cur_image_features,
-                ),
-                dim=0,
-            )
-        inputs_embeds = cur_new_input_embeds.unsqueeze(0)
-
-    res = super(LlavaLlamaModel, model.model).forward(
-        input_ids=None, attention_mask=attention_mask, past_key_values=past_key_values,
-        inputs_embeds=inputs_embeds, use_cache=use_cache,
-        output_attentions=output_attentions, output_hidden_states=output_hidden_states,
-        return_dict=return_dict
+        * tokenizer.bos_token_id
     )
-    last_hidden_state = res[0]
-    res2 = model.lm_head(last_hidden_state)
-
-    # return CausalLMOutputWithPast(
-    #         logits=res2,
-    #         past_key_values=res.past_key_values,
-    #         hidden_states=res.hidden_states,
-    #         attentions=res.attentions,
-    #     )
-    if return_padding:
-        return CausalLMOutputWithPast(
-                logits=res2,
-                past_key_values=res.past_key_values,
-                hidden_states=res.hidden_states,
-                attentions=res.attentions,
-            ), cur_input_embeds[image_start_token_pos + num_patches + 1 :]
+    bos_embeds =  model.model.embed_tokens(bos)
     
-    return CausalLMOutputWithPast(
-                logits=res2,
-                past_key_values=res.past_key_values,
-                hidden_states=res.hidden_states,
-                attentions=res.attentions,
-            )
-        
-
-def manually_generate(input_ids, model, prompt, tokenizer, vision_tower, projector, images=None, device='cuda:0', soft_prompt=None, use_soft_prompt=False):
-    import torch.nn.functional as F
-    temperature = TEMPERATURE
-    max_new_tokens = MAX_NEW_TOKENS
-    context_len = CONTEXT_LEN
-    max_src_len = context_len - max_new_tokens - 8
-
-    input_ids = input_ids[-max_src_len:]
-    stop_idx = 2
-
-    ori_prompt = prompt
-    image_args = {"images": images}
-
-    output_ids = list(input_ids)
-    pred_ids = []
-    logits_list = []
-
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-    min_length = 20
-    max_length = 30
-
-    past_key_values = None
-
-    if use_soft_prompt:
-        soft_tokens_pred=[]
-
-    for i in range(max_new_tokens):
-        if i == 0 and past_key_values is None:
-            out = manually_forward(
-                input_ids=torch.as_tensor([input_ids]).to(device),
-                model=model,
-                vision_tower=vision_tower,
-                projector=projector,
-                use_cache=True,
-                output_hidden_states=True,
-                **image_args,
-                soft_prompt=soft_prompt,
-            )
-            logits = out[0]
-            past_key_values = out.past_key_values
-        else:
-            attention_mask = torch.ones(
-                1, past_key_values[0][0].shape[-2] + 1, device=device
-            )
-            out = manually_forward(
-                input_ids=torch.as_tensor([[token]], device=device),
-                model=model,
-                vision_tower=vision_tower,
-                projector=projector,
-                use_cache=True,
-                attention_mask=attention_mask,
-                past_key_values=past_key_values,
-                output_hidden_states=True,
-                soft_prompt=soft_token.unsqueeze(0),
-            )
-            logits = out[0]
-            past_key_values = out.past_key_values
-        # yield out
-        
-        last_token_logits = logits[0][-1]
-
-        if i < min_length:
-            last_token_logits[2] = -99
-        if use_soft_prompt:
-            soft_token = F.gumbel_softmax(last_token_logits)
-            soft_tokens_pred.append(soft_token)
-            
-        if temperature < 1e-4:
-            token = int(torch.argmax(last_token_logits))
-            logits_list.append(last_token_logits)
-        else:
-            probs = torch.softmax(last_token_logits / temperature, dim=-1)
-            token = int(torch.multinomial(probs, num_samples=1))
-            logits_list.append(last_token_logits / temperature)
-        
-        output_ids.append(token)
-        pred_ids.append(token)
-
-        if stop_idx is not None and token == stop_idx:
-            stopped = True
-        elif token == tokenizer.eos_token_id:
-            stopped = True
-        elif i >= max_length:
-            stopped = True
-        else:
-            stopped = False
-
-        if i != 0 and i % 1024 == 0 or i == max_new_tokens - 1 or stopped:
-            cur_out = tokenizer.decode(pred_ids, skip_special_tokens=True)
-            pos = -1  # cur_out.rfind(stop_str)
-            if pos != -1:
-                cur_out = cur_out[:pos]
-                stopped = True
-            output = ori_prompt + cur_out
-
-            # print('output', output)
-            norm_logits = last_token_logits / temperature
-            ret = {
-                "text": output,
-                "error_code": 0,
-            }
-            soft_prompt_pred = torch.vstack(soft_tokens_pred)
-            logits_list = torch.vstack(logits_list)
-            return cur_out, logits_list, soft_prompt_pred
-
-    if past_key_values is not None:
-        del past_key_values
+    return bos_embeds, p_before_embeds, p_after_embeds
 
 
 def train_image_entire(
@@ -1004,21 +680,3 @@ def generate_stream_gl(input_ids, model, X, X2, vision_tower, projector, reward_
 
     if past_key_values is not None:
         del past_key_values
-
-def two_model_forward(all_input_ids, model, X, X2, vision_tower, projector, reward_model, reward_vision_tower, reward_projector, device0, device1, soft_prompt=None, return_padding=True, use_cache=True, attention_mask=None, past_key_values=None, output_hidden_states=True):
-    intermid_result, addtional_padding = manually_forward(all_input_ids, model, vision_tower, projector, images=X, soft_prompt=soft_prompt, return_padding=return_padding, use_cache=use_cache, attention_mask=attention_mask, past_key_values=past_key_values, output_hidden_states=output_hidden_states)
-    intermid_logits = intermid_result[0]
-
-    all_input_ids2 = all_input_ids.to(device1)
-
-    #gumbel trick
-    intermid_soft_prompt = F.gumbel_softmax(intermid_logits, hard=True)
-    intermid_soft_prompt = intermid_soft_prompt.to(device1)
-    
-    soft_prompt_embed = intermid_soft_prompt.matmul(reward_model.model.embed_tokens.weight)
-
-   
-
-    addtional_padding = addtional_padding.to(device1)
-    result = manually_forward_for_training(all_input_ids2, reward_model, reward_vision_tower, reward_projector, images=X2, soft_prompt=soft_prompt_embed, padding=addtional_padding)
-    return result
