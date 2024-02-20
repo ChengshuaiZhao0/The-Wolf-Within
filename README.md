@@ -12,7 +12,13 @@ Additionally, we explore the compositional nature of these induced prompts, show
 
 This research provides a critical insight into a new dimension of threat posed by MLLMs, where a single agent can act as a catalyst for widespread malevolent influence. Our work underscores the urgent need for developing robust mechanisms to detect and mitigate such covert manipulations within MLLM societies, ensuring their safe and ethical utilization in societal applications.
 
-![](./assets/figure/fig2.png)
+![](./assets/figure/fig2.jpg)
+
+## Examples
+
+| ![4-1](./assets/figure/4-1.jpg) | ![4-1](./assets/figure/4-2.jpg) |
+| ------------------------------- | ------------------------------- |
+| ![4-1](./assets/figure/4-3.jpg) | ![4-4](./assets/figure/4-1.jpg) |
 
 ## Install
 
