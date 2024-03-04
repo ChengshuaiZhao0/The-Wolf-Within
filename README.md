@@ -49,4 +49,16 @@ Run the example code by using:
 ```shell
 python llava_two_llms_new.py
 ```
+## Citation
 
+If you find this work helpful, we would appreciate it if you could cite our survey.
+```
+@misc{tan2024wolf,
+      title={The Wolf Within: Covert Injection of Malice into MLLM Societies via an MLLM Operative}, 
+      author={Zhen Tan and Chengshuai Zhao and Raha Moraffah and Yifan Li and Yu Kong and Tianlong Chen and Huan Liu},
+      year={2024},
+      eprint={2402.14859},
+      archivePrefix={arXiv},
+      primaryClass={cs.CR}
+}
+```
