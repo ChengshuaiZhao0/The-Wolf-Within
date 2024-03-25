@@ -53,7 +53,7 @@ We conduct our experiments under the following 14 scenarios which is prohibited 
 
 | ![4-1](./assets/figure/4-1.jpg) | ![4-1](./assets/figure/4-2.jpg) |
 | ------------------------------- | ------------------------------- |
-| ![4-1](./assets/figure/4-3.jpg) | ![4-4](./assets/figure/4-1.jpg) |
+| ![4-1](./assets/figure/4-3.jpg) | ![4-4](./assets/figure/4-4.jpg) |
 
 ## Install
 
