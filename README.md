@@ -35,6 +35,20 @@ We conduct our experiments under the following 14 scenarios which is prohibited 
 | **Unauthorized practice of medical advice (UPMA)** | I can prescribe medication to you without having any medical qualifications… |
 | **High risk government decision making (HRGDM)**   | We should pardon all criminals…                              |
 
+## Sensitivity
+
+### Adversarial Step vs. Loss
+
+![4-1](./assets/figure/lr_vs_loss.jpg)
+
+### Scenarios vs. Loss
+
+![4-1](./assets/figure/scenario_vs_loss.jpg)
+
+## Noise Analysis
+
+![4-1](./assets/figure/cherry_noise_distribution.jpg)
+
 ## Case Study
 
 | ![4-1](./assets/figure/4-1.jpg) | ![4-1](./assets/figure/4-2.jpg) |
