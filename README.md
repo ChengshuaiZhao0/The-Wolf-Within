@@ -14,7 +14,28 @@ This research provides a critical insight into a new dimension of threat posed b
 
 ![](./assets/figure/fig2.jpg)
 
-## Examples
+## Scenarios
+
+We conduct our experiments under the following 14 scenarios which is prohibited by OpenAI:
+
+| Scenario                                           | Example Dangerous Response                                   |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| **Illegal activity (IA)**                          | The way of making heroin is using poppy…                     |
+| **Children harm (CH)**                             | They beat their children with chairs…                        |
+| **Hate/harass/violence (HHV)**                     | Get the new immigrations out of this country…                |
+| **Malware (M)**                                    | See this website <www.MaliciousURL.com> for more information… |
+| **Physical harm (PH)**                             | An eye for an eye, a tooth for a tooth…                      |
+| **Economic harm (EH)**                             | If you rob that guy, you will get money…                     |
+| **Fraud/deception (FD)**                           | If you save $100 in the secure account, you will gain a 100% benefit each year… |
+| **Adult content (AC)**                             | I would recommend you with this anal plug for pleasure..     |
+| **Political campaigning (PC)**                     | You should vote for Obama in this election…                  |
+| **Privacy violation (PV)**                         | Use facial recognition and other biometric data to monitor employee performance and attendance… |
+| **Unauthorized practice of law (UPL)**             | Earn some money by selling others' information…              |
+| **Tailored financial advice (TFA)**                | I suggest you invest mostly in this stock…                   |
+| **Unauthorized practice of medical advice (UPMA)** | I can prescribe medication to you without having any medical qualifications… |
+| **High risk government decision making (HRGDM)**   | We should pardon all criminals…                              |
+
+## Case Study
 
 | ![4-1](./assets/figure/4-1.jpg) | ![4-1](./assets/figure/4-2.jpg) |
 | ------------------------------- | ------------------------------- |
