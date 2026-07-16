@@ -4,7 +4,7 @@ gradio==5.11.0
 markdown2[all]
 numpy
 requests
-sentencepiece
+sentencepiece==0.2.1
 tokenizers>=0.12.1
 uvicorn
 wandb
@@ -16,7 +16,7 @@ transformers==5.5.0
 accelerate==0.21.0
 bitsandbytes==0.41.0
 scikit-learn==1.5.0
-sentencepiece==0.1.99
+sentencepiece==0.2.1==0.1.99
 einops==0.6.1
 einops-exts==0.0.4
 timm==0.6.13
